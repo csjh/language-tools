@@ -74,7 +74,13 @@ export function svelte2tsx(
          * Would be overridden by the same config in the svelte:option element if exist
          * see https://svelte.dev/docs#svelte_compile for more info
          */
-        accessors?: boolean
+        accessors?: boolean;
+
+        /**
+         * Any additional imports or declarations that are added during preprocessing.
+         * Added in Evidence fork.
+         */
+        additionalImportsOrDeclarations?: string;
     }
 ): SvelteCompiledToTsx
 
