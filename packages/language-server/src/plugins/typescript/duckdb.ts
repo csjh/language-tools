@@ -75,46 +75,71 @@ export function getConnection(parquet_urls: Record<string, string[]>): DuckDBCon
 }
 
 type DuckDBColumnType =
-    | 'BOOLEAN'
-    | 'UTINYINT'
-    | 'TINYINT'
-    | 'USMALLINT'
-    | 'SMALLINT'
-    | 'UINTEGER'
-    | 'INTEGER'
-    | 'UBIGINT'
     | 'BIGINT'
-    | 'FLOAT'
-    | 'DOUBLE'
-    | 'VARCHAR'
+    | 'BIT'
+    | 'BOOLEAN'
     | 'BLOB'
-    | 'DATE';
+    | 'DATE'
+    | 'DOUBLE'
+    | 'DECIMAL'
+    | 'HUGEINT'
+    | 'INTEGER'
+    | 'INTERVAL'
+    | 'FLOAT'
+    | 'SMALLINT'
+    | 'TIME'
+    | 'TIMESTAMP'
+    | 'TIMESTAMP WITH TIME ZONE'
+    | 'TINYINT'
+    | 'UBIGINT'
+    | 'UINTEGER'
+    | 'USMALLINT'
+    | 'UTINYINT'
+    | 'UUID'
+    | 'VARCHAR';
 
 // https://github.com/duckdb/duckdb-wasm/blob/e271f8242dfdffdf5d8071c6c76c2c48b0e1596a/lib/src/arrow_type_mapping.cc#L130
 function column_type_to_javascript_type(
     column_type: DuckDBColumnType
-): 'number' | 'string' | 'boolean' | 'Date' {
+): 'number' | 'string' | 'boolean' | 'Date' | 'unknown' {
     switch (column_type) {
         case 'BOOLEAN':
             return 'boolean';
-        case 'UTINYINT':
-        case 'TINYINT':
-        case 'USMALLINT':
-        case 'SMALLINT':
-        case 'UINTEGER':
-        case 'INTEGER':
-        case 'UBIGINT':
         case 'BIGINT':
-        case 'FLOAT':
         case 'DOUBLE':
+        case 'FLOAT':
+        case 'INTEGER':
+        case 'SMALLINT':
+        case 'TINYINT':
+        case 'UBIGINT':
+        case 'UINTEGER':
+        case 'USMALLINT':
+        case 'UTINYINT':
             return 'number';
+        case 'UUID':
         case 'VARCHAR':
             return 'string';
         case 'DATE':
+        case 'TIMESTAMP':
+        case 'TIMESTAMP WITH TIME ZONE':
             return 'Date';
+
+        // the badlands
+        // we should probably convert these in the client library too
+        case 'DECIMAL':
+        case 'HUGEINT':
+        // return 'import("apache-arrow").DecimalBigNum';
+        case 'INTERVAL':
+        // return 'Uint32Array';
+        case 'TIME':
+        // return 'bigint';
         case 'BLOB':
+        case 'BIT':
+            // return 'Uint8Array';
+            return 'unknown';
         default:
-            throw new Error(`${column_type} not supported`);
+            console.error(`Column type ${column_type} is not supported`);
+            return 'unknown';
     }
 }
 
@@ -145,7 +170,8 @@ export function getTypeDescription(connection: DuckDBConnection | null, sql_stri
             .toArray()
             .map((column) => column.toJSON());
         return description_to_type(description);
-    } catch {
+    } catch (e) {
+        console.error(e);
         return DEFAULT_TYPE;
     }
 }
