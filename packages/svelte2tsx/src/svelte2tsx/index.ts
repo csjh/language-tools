@@ -312,7 +312,6 @@ export function svelte2tsx(
         accessors?: boolean;
         typingsNamespace?: string;
         noSvelteComponentTyped?: boolean;
-        additionalImportsOrDeclarations?: string;
     } = {}
 ) {
     options.mode = options.mode || 'ts';
@@ -448,9 +447,6 @@ export function svelte2tsx(
             code
         };
     } else {
-        if (options.additionalImportsOrDeclarations) {
-            str.prepend(options.additionalImportsOrDeclarations);
-        }
         str.prepend('///<reference types="svelte" />\n');
         return {
             code: str.toString(),
