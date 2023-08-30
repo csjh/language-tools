@@ -197,31 +197,7 @@ function preprocessSvelteFile(document: Document, options: SvelteSnapshotOptions
         : ts.ScriptKind.JS;
 
     try {
-        let additionalImportsOrDeclarations = '';
-
         const filename = document.getFilePath() ?? undefined;
-        if (filename && filename.endsWith('.md') && filename.includes('/pages/')) {
-            // JSON.parse(static/data/manifest.json)
-            const manifest = {};
-
-            const connection = getConnection(manifest);
-
-            // TODO: properly type this (revamp preprocess while you're at it)
-            const queries = [];
-
-            for (const { id, compiledQueryString } of queries) {
-                const type_description = getTypeDescription(connection, compiledQueryString);
-                additionalImportsOrDeclarations += `declare const ${id}: ${type_description};\n`;
-            }
-
-            // change to getPluginComponents()
-            const components: Record<string, { package: string; aliasOf?: string }> = {};
-
-            for (const [component, data] of Object.entries(components)) {
-                const import_name = data.aliasOf ? `${data.aliasOf} as ${component}` : component;
-                additionalImportsOrDeclarations += `import { ${import_name} } from '${data.package}';\n`;
-            }
-        }
 
         const tsx = svelte2tsx(text, {
             filename,
@@ -232,14 +208,40 @@ function preprocessSvelteFile(document: Document, options: SvelteSnapshotOptions
             namespace: document.config?.compilerOptions?.namespace,
             accessors:
                 document.config?.compilerOptions?.accessors ??
-                document.config?.compilerOptions?.customElement,
-            additionalImportsOrDeclarations
+                document.config?.compilerOptions?.customElement
         });
         text = tsx.code;
         tsxMap = tsx.map as EncodedSourceMap;
         exportedNames = tsx.exportedNames;
         // We know it's there, it's not part of the public API so people don't start using it
         htmlAst = (tsx as any).htmlAst;
+
+        if (filename && filename.endsWith('.md') && filename.includes('/pages/')) {
+            let additionalImportsOrDeclarations = '';
+
+            // JSON.parse(static/data/manifest.json)
+            const manifest = {};
+
+            const connection = getConnection(manifest);
+
+            // TODO: properly type this (revamp preprocess while you're at it)
+            const queries = [];
+
+            for (const { id, compiledQueryString } of queries) {
+                const type_description = getTypeDescription(connection, compiledQueryString);
+                additionalImportsOrDeclarations += `declare const ${id}: ${type_description};`;
+            }
+
+            // change to getPluginComponents()
+            const components: Record<string, { package: string; aliasOf?: string }> = {};
+
+            for (const [component, data] of Object.entries(components)) {
+                const import_name = data.aliasOf ? `${data.aliasOf} as ${component}` : component;
+                additionalImportsOrDeclarations += `import { ${import_name} } from '${data.package}';`;
+            }
+
+            text = additionalImportsOrDeclarations + text;
+        }
 
         if (tsxMap) {
             tsxMap.sources = [document.uri];
