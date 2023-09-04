@@ -74,14 +74,17 @@ export function getConnection(parquet_urls: Record<string, string[]>): DuckDBCon
     return connection;
 }
 
+// generate with DESCRIBE SELECT column_type FROM test_all_types();
 type DuckDBColumnType =
+    | `STRUCT(${string})`
+    | `${string}[]`
     | 'BIGINT'
     | 'BIT'
     | 'BOOLEAN'
     | 'BLOB'
     | 'DATE'
     | 'DOUBLE'
-    | 'DECIMAL'
+    | `DECIMAL(${number},${number})`
     | 'HUGEINT'
     | 'INTEGER'
     | 'INTERVAL'
@@ -89,6 +92,10 @@ type DuckDBColumnType =
     | 'SMALLINT'
     | 'TIME'
     | 'TIMESTAMP'
+    | 'TIMESTAMP_S'
+    | 'TIMESTAMP_MS'
+    | 'TIMESTAMP_NS'
+    | 'TIME WITH TIME ZONE'
     | 'TIMESTAMP WITH TIME ZONE'
     | 'TINYINT'
     | 'UBIGINT'
@@ -98,10 +105,25 @@ type DuckDBColumnType =
     | 'UUID'
     | 'VARCHAR';
 
+function is_object_type(
+    column_type: DuckDBColumnType
+): column_type is `STRUCT(${string})` | `${string}[]` {
+    return column_type.startsWith('STRUCT') || column_type.endsWith('[]');
+}
+
+function is_decimal_type(
+    column_type: DuckDBColumnType
+): column_type is `DECIMAL(${number},${number})` {
+    return column_type.startsWith('DECIMAL');
+}
+
 // https://github.com/duckdb/duckdb-wasm/blob/e271f8242dfdffdf5d8071c6c76c2c48b0e1596a/lib/src/arrow_type_mapping.cc#L130
 function column_type_to_javascript_type(
     column_type: DuckDBColumnType
 ): 'number' | 'string' | 'boolean' | 'Date' | 'unknown' {
+    if (is_object_type(column_type)) return 'unknown';
+    if (is_decimal_type(column_type)) return 'number';
+
     switch (column_type) {
         case 'BOOLEAN':
             return 'boolean';
@@ -115,29 +137,32 @@ function column_type_to_javascript_type(
         case 'UINTEGER':
         case 'USMALLINT':
         case 'UTINYINT':
+        case 'HUGEINT':
             return 'number';
         case 'UUID':
         case 'VARCHAR':
             return 'string';
         case 'DATE':
         case 'TIMESTAMP':
+        case 'TIMESTAMP_S':
+        case 'TIMESTAMP_MS':
+        case 'TIMESTAMP_NS':
         case 'TIMESTAMP WITH TIME ZONE':
             return 'Date';
 
         // the badlands
         // we should probably convert these in the client library too
-        case 'DECIMAL':
-        case 'HUGEINT':
-        // return 'import("apache-arrow").DecimalBigNum';
         case 'INTERVAL':
         // return 'Uint32Array';
         case 'TIME':
+        case 'TIME WITH TIME ZONE':
         // return 'bigint';
         case 'BLOB':
         case 'BIT':
             // return 'Uint8Array';
             return 'unknown';
         default:
+            // column_type should be `never`
             console.error(`Column type ${column_type} is not supported`);
             return 'unknown';
     }
