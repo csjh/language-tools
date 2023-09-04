@@ -42,7 +42,7 @@ import { getProjectRoot, getRenderedFiles } from './evidenceUtilities';
 let components: Record<string, { package: string; aliasOf?: string }>;
 eval('import("@evidence-dev/plugin-connector")')
     .then((x: any) => x.getPluginComponents())
-    .then((x: any) => console.log(components = x));
+    .then((x: any) => console.log((components = x)));
 
 let extractQueries: any;
 eval('import("@evidence-dev/preprocess")').then(
