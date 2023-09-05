@@ -183,7 +183,7 @@ function description_to_type(
     return `{ ${type} }[]`;
 }
 
-const DEFAULT_TYPE = 'Record<string, number | string | boolean | Date>[]';
+const DEFAULT_TYPE = 'Record<string, unknown>[]';
 
 /** Generates a Typescript definition for a given SQL query */
 export function getTypeDescription(connection: DuckDBConnection | null, sql_string: string) {
