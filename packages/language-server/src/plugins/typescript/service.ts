@@ -9,6 +9,7 @@ import { Logger } from '../../logger';
 import { createGetCanonicalFileName, normalizePath, urlToPath } from '../../utils';
 import { DocumentSnapshot, SvelteSnapshotOptions } from './DocumentSnapshot';
 import { createSvelteModuleLoader } from './module-loader';
+import { initDB } from './duckdb';
 import {
     GlobalSnapshotsManager,
     ignoredBuildDirectories,
@@ -208,6 +209,8 @@ async function createLanguageService(
         workspacePath,
         files
     );
+
+    await initDB();
 
     // Load all configs within the tsconfig scope and the one above so that they are all loaded
     // by the time they need to be accessed synchronously by DocumentSnapshots.

@@ -1,5 +1,4 @@
 import { EncodedSourceMap, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
-import path from 'path';
 import { walk } from 'svelte/compiler';
 import { TemplateNode } from 'svelte/types/compiler/interfaces';
 import { svelte2tsx, IExportedNames, internalHelpers } from 'svelte2tsx';
@@ -31,6 +30,24 @@ import { dirname, resolve } from 'path';
 import { URI } from 'vscode-uri';
 import { surroundWithIgnoreComments } from './features/utils';
 import { configLoader } from '../../lib/documents/configLoader';
+import { getConnection, getTypeDescription } from './duckdb';
+import { getProjectRoot, getRenderedFiles } from './evidenceUtilities';
+
+// TODO: do alongside `initDB()` to guarantee it's finished in time
+// also: need to do for all levels instead of assuming evidence project is
+// top level of project
+// or maybe make it synchronous so we can guarantee freshness?
+// check how slow that is
+// might not be too slow, can cache the slow directory component finding
+let components: Record<string, { package: string; aliasOf?: string }>;
+eval('import("@evidence-dev/plugin-connector")')
+    .then((x: any) => x.getPluginComponents())
+    .then((x: any) => console.log((components = x)));
+
+let extractQueries: any;
+eval('import("@evidence-dev/preprocess")').then(
+    (x: any) => (extractQueries = x.default.extractQueries)
+);
 
 /**
  * An error which occurred while trying to parse/preprocess the svelte file contents.
@@ -197,8 +214,10 @@ function preprocessSvelteFile(document: Document, options: SvelteSnapshotOptions
         : ts.ScriptKind.JS;
 
     try {
+        const filename = document.getFilePath() ?? undefined;
+
         const tsx = svelte2tsx(text, {
-            filename: document.getFilePath() ?? undefined,
+            filename,
             isTsFile: scriptKind === ts.ScriptKind.TS,
             mode: 'ts',
             typingsNamespace: options.typingsNamespace,
@@ -213,6 +232,39 @@ function preprocessSvelteFile(document: Document, options: SvelteSnapshotOptions
         exportedNames = tsx.exportedNames;
         // We know it's there, it's not part of the public API so people don't start using it
         htmlAst = (tsx as any).htmlAst;
+
+        const config = getProjectRoot(filename);
+        if (config && filename && filename.endsWith('.md')) {
+            let additionalImportsOrDeclarations = '';
+
+            // TODO: properly type this (revamp preprocess while you're at it)
+            const queries = extractQueries(document.getText());
+
+            let connection: ReturnType<typeof getConnection> = null;
+            try {
+                const manifest = getRenderedFiles(config);
+                connection = getConnection(manifest);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                for (const { id, compiledQueryString } of queries) {
+                    const type_description = getTypeDescription(connection, compiledQueryString);
+                    additionalImportsOrDeclarations += `declare const ${id}: ${type_description};`;
+                }
+            }
+
+            /*
+            const components: Record<string, { package: string; aliasOf?: string }>
+                = getPluginComponents();
+            */
+
+            for (const [component, data] of Object.entries(components)) {
+                const import_name = data.aliasOf ? `${data.aliasOf} as ${component}` : component;
+                additionalImportsOrDeclarations += `import { ${import_name} } from '${data.package}';`;
+            }
+
+            text = additionalImportsOrDeclarations + text;
+        }
 
         if (tsxMap) {
             tsxMap.sources = [document.uri];
